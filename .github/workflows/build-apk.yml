@@ -1,0 +1,61 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find Android project
+        run: |
+          if [ -f chaihata-android-project.zip ]; then
+            mkdir -p project && unzip -q chaihata-android-project.zip -d project
+          elif [ -f android/settings.gradle ]; then
+            cp -r android project
+          else
+            echo "Android project not found" && exit 1
+          fi
+          ls -la project
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: "8.7"
+
+      - name: Build APK
+        working-directory: project
+        run: gradle assembleDebug --no-daemon
+
+      - name: Collect APK
+        run: cp project/app/build/outputs/apk/debug/app-debug.apk Chaihata-School-App.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Chaihata-School-APK
+          path: Chaihata-School-App.apk
+
+      - name: Publish APK download link
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: Chaihata School App (latest)
+          files: Chaihata-School-App.apk
+          make_latest: true
